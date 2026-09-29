@@ -1,0 +1,38 @@
+[
+    {
+        "title":  "Make upgrades fail-safe with a pre-flight check and automatic rollback",
+        "product_area":  "Installation \u0026 Upgrade",
+        "tickets":  33,
+        "ticket_ids":  [
+                           900023,
+                           900048,
+                           900060,
+                           900109
+                       ],
+        "problem":  "DEMO: after upgrading, the service sometimes fails to start and customers can\u0027t find the supported upgrade path from older versions.",
+        "evidence":  "DEMO: illustrative only. In a real run this states the ticket count, median resolution and messages per ticket.",
+        "recommendation":  [
+                               "Verify the service starts after install and roll back automatically if it doesn\u0027t.",
+                               "Show the required upgrade path in-product and on the download page."
+                           ],
+        "type":  "Bug fix"
+    },
+    {
+        "title":  "Replace generic SSO and API errors with specific, actionable messages",
+        "product_area":  "Users, SSO \u0026 Access",
+        "tickets":  23,
+        "ticket_ids":  [
+                           900013,
+                           900032,
+                           900046,
+                           900085
+                       ],
+        "problem":  "DEMO: SSO login loops and 401 API errors give no hint about the cause.",
+        "evidence":  "DEMO: illustrative only.",
+        "recommendation":  [
+                               "Name the missing permission or expired secret in the error.",
+                               "Warn admins before SSO secrets expire."
+                           ],
+        "type":  "UX improvement"
+    }
+]
