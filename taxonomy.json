@@ -1,0 +1,34 @@
+{
+  "_comment": "Edit these to match your product. Theme codes must match prompts/tagging-instructions.md.",
+  "themes": {
+    "ACCOUNT_ACCESS": "Account access & login",
+    "LICENSE_ACTIVATION": "Licensing & activation",
+    "RENEWAL_CANCEL": "Renewals & cancellations",
+    "BILLING_INVOICE": "Billing & invoices",
+    "VENDOR_COMPLIANCE": "Vendor & compliance forms",
+    "ACCOUNT_DATA": "Account & contact changes",
+    "SALES_QUOTE_TRIAL": "Sales, quotes & trials",
+    "CALLBACK_CHASE": "Callbacks & status chasing",
+    "INSTALL_UPGRADE": "Install & upgrade",
+    "MIGRATION": "Migration & moves",
+    "CONFIG_HOWTO": "Configuration & how-to",
+    "BUG_ERROR": "Errors & defects",
+    "PERFORMANCE_STABILITY": "Performance & stability",
+    "INTEGRATION_API": "Integrations & API",
+    "NOTIFICATIONS": "Alerts & notifications",
+    "USERS_SSO": "Users, SSO & permissions",
+    "SECURITY": "Security & certificates",
+    "REPORTING_DATA": "Reports & data export",
+    "FEATURE_REQUEST": "Feature requests",
+    "NOISE": "Noise",
+    "UNTAGGED": "Untagged"
+  },
+  "productAreas": [
+    "Installation & Upgrade", "Licensing & Activation", "Core Product", "Integrations & API",
+    "Notifications", "Users, SSO & Access", "Security", "Reporting", "Mobile/Desktop Apps",
+    "Customer Portal & Billing", "None"
+  ],
+  "components": [
+    "Web UI", "Backend/Server", "Agent/Connector", "API", "Email", "Mobile", "Database", "Other"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "orgName": "Customer Support",
+  "allLabel": "All teams",
+  "groups": ["Customer Care", "Technical Support"],
+
+  "fields": {
+    "category": "Ticket Category",
+    "requestType": "Request Type",
+    "tier": "Support Tier"
+  },
+
+  "blankSourceLabel": "Other / custom channel",
+
+  "autoClose": {
+    "closedNotePattern": "(?i)has been closed|closed this ticket|since we haven.t heard",
+    "followUpNotePattern": "(?i)following up on your ticket|friendly reminder|will auto.?close|has been closed"
+  },
+
+  "agentMinTickets": 15,
+  "agentScoreWeights": { "quality": 0.4, "fcr": 0.2, "firstResponse": 0.2, "resolution": 0.2 },
+  "fcrMaxCustomerReplies": 2,
+  "excludeWeekendsFromFirstResponse": true
+}

@@ -1,0 +1,9 @@
+# never commit real data
+run/
+*.csv
+*.jsonl
+config.json
+*.xlsx
+
+# demo run is regenerated locally; docs/demo-report.html is the committed sample
+demo/run/
