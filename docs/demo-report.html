@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Ticket Analysis</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --card: #ffffff;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --good-text: #006300; --accent-wash: #eef4fc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --card: #1a1a19;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --good-text: #0ca30c; --accent-wash: #16273d;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --card: #1a1a19;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --good-text: #0ca30c; --accent-wash: #16273d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--page); color: var(--text-primary); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 24px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 40px 0 4px; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--text-secondary); margin: 2px 0 0; }
+.note { color: var(--muted); font-size: 12px; }
+.lead { color: var(--text-secondary); max-width: 900px; margin: 4px 0 16px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; font-size: 13px; }
+nav.toc a { color: var(--text-secondary); text-decoration: none; }
+nav.toc a:hover { color: var(--text-primary); text-decoration: underline; }
+.filterbar { position: sticky; top: 0; z-index: 5; background: var(--page); padding: 12px 0; border-bottom: 1px solid var(--grid); margin-bottom: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; background: transparent; color: var(--text-secondary); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--page); font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; }
+.tile { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .k { color: var(--text-secondary); font-size: 12px; }
+.tile .v { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.tile .d { color: var(--muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+.chart { width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart text.lbl { fill: var(--text-secondary); font-size: 12px; font-variant-numeric: normal; }
+.chart text.val { fill: var(--text-primary); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover + .mark, .chart g.bar:hover .mark { opacity: 0.8; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+details.tv { margin-top: 8px; }
+details.tv summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--text-primary); }
+.tablewrap { overflow-x: auto; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--axis); color: var(--text-secondary); white-space: nowrap; }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.insight { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--series-1); border-radius: 10px; padding: 14px 16px; }
+.insight h3 { margin-bottom: 4px; }
+.insight p { margin: 4px 0; color: var(--text-secondary); }
+.insight ul { margin: 6px 0 0; padding-left: 18px; color: var(--text-secondary); }
+.insight .meta { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.insight.prod { border-left-color: var(--series-2); }
+.insight.agent { border-left-color: var(--series-3); }
+.callout { background: var(--accent-wash); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+.callout ul { margin: 6px 0 0; padding-left: 18px; }
+.muted { color: var(--muted); }
+.bar-inline { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--series-1); vertical-align: middle; }
+#tip { position: fixed; pointer-events: none; background: var(--text-primary); color: var(--page); font-size: 12px; padding: 6px 9px; border-radius: 6px; opacity: 0; transition: opacity .08s; z-index: 50; max-width: 320px; }
+.theme-toggle { font: inherit; font-size: 12px; background: transparent; color: var(--text-secondary); border: 1px solid var(--axis); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+@media print { .filterbar { position: static; } details.tv { display: none; } }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 id="title">Support Ticket Analysis</h1>
+      <p class="sub" id="period"></p>
+    </div>
+    <button class="theme-toggle" id="themeBtn" type="button">Toggle dark mode</button>
+  </header>
+  <nav class="toc">
+    <a href="#summary">Summary</a><a href="#kpis">KPIs</a><a href="#compare">Team comparison</a><a href="#volume">Volume</a>
+    <a href="#speed">Response &amp; resolution</a><a href="#themes">Volume drivers</a><a href="#improve">Where to improve</a>
+    <a href="#product">Product team</a><a href="#agents">Agents</a><a href="#method">Method</a>
+  </nav>
+
+  <section id="summary">
+    <h2>Executive summary</h2>
+    <div id="execSummary"></div>
+  </section>
+
+  <div class="filterbar">
+    <span class="note">Scope for charts below:</span>
+    <div class="seg" role="group" aria-label="Scope" id="scopeButtons">
+    </div>
+  </div>
+
+  <section id="kpis">
+    <h2>Key metrics — <span class="scopeName"></span></h2>
+    <p class="lead">Spam, auto-replies and other non-customer tickets ("noise") are excluded from speed and quality metrics. Times are calendar hours (not business hours).</p>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="compare">
+    <h2 id="compareTitle">Team comparison</h2>
+    <div class="card tablewrap"><table id="compareTable"></table></div>
+  </section>
+
+  <section id="volume">
+    <h2>Ticket volume — <span class="scopeName"></span></h2>
+    <div class="card"><h3>Tickets created per day</h3><div class="chart" id="chDay"></div></div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="card"><h3>By weekday</h3><div class="chart" id="chWeekday"></div></div>
+      <div class="card"><h3>By hour created (UTC)</h3><div class="chart" id="chHour"></div></div>
+      <div class="card"><h3>By channel</h3><div class="chart" id="chSource"></div></div>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="card"><h3>By support tier</h3><div class="chart" id="chTier"></div></div>
+      <div class="card"><h3>Status today</h3><div class="chart" id="chStatus"></div></div>
+      <div class="card"><h3>Ended positive or neutral, by week</h3><div class="chart" id="chSent"></div><p class="note">Share of tickets where the customer's closing tone was positive or neutral (full weeks, starting Monday).</p></div>
+    </div>
+  </section>
+
+  <section id="speed">
+    <h2>Response &amp; resolution time — <span class="scopeName"></span></h2>
+    <div class="grid2">
+      <div class="card"><h3>Time to first response (excl. weekend hours)</h3><div class="chart" id="chFrt"></div></div>
+      <div class="card"><h3>Time to resolution (excl. tickets closed after no customer reply)</h3><div class="chart" id="chRes"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Speed and effort by volume driver</h3><p class="note">Median hours. Sorted by ticket count.</p><div class="tablewrap"><table id="themeSpeed"></table></div></div>
+  </section>
+
+  <section id="themes">
+    <h2>What's driving ticket volume — <span class="scopeName"></span></h2>
+    <p class="lead">Every ticket was read and assigned one contact reason. Categories in Freshdesk are blank or generic on many tickets, so these are based on the conversation itself.</p>
+    <div class="grid2">
+      <div class="card"><h3>Contact reasons</h3><div class="chart" id="chTheme"></div></div>
+      <div class="card"><h3>Root cause</h3><div class="chart" id="chRoot"></div>
+        <h3 style="margin-top:18px">Could this ticket have been prevented?</h3><div class="chart" id="chPrev"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Top specific issues within each contact reason</h3><div class="tablewrap"><table id="subThemes"></table></div></div>
+    <div id="themeInsights" style="margin-top:16px"></div>
+  </section>
+
+  <section id="improve">
+    <h2>Where we can improve</h2>
+    <p class="lead">Ranked by the number of tickets each change could remove or shorten.</p>
+    <div class="insights" id="improveCards"></div>
+  </section>
+
+  <section id="product">
+    <h2>For the Product team</h2>
+    <p class="lead">Tickets whose root cause is a product defect, usability gap or missing feature, or that the product itself could have prevented. Counts are for all teams combined.</p>
+    <div class="grid2">
+      <div class="card"><h3>Product-preventable tickets by product area</h3><div class="chart" id="chProdArea"></div></div>
+      <div class="card"><h3>Product-related tickets by component</h3><div class="chart" id="chSensor"></div></div>
+    </div>
+    <div class="insights" id="productCards" style="margin-top:16px"></div>
+  </section>
+
+  <section id="agents">
+    <h2>Agent performance</h2>
+    <p class="lead" id="agentLead"></p>
+    <div class="insights" id="agentCards"></div>
+    <div id="agentTables">
+    </div>
+  </section>
+
+  <section id="method">
+    <h2>Method &amp; caveats</h2>
+    <div class="card" id="methodText"></div>
+  </section>
+</div>
+<div id="tip" role="tooltip"></div>
+</div>
+
+<script>
+const M = {"generated":"2026-09-28 14:46","period":"2026-08-31 to 2026-09-27","orgName":"Customer Support","scopeOrder":["All teams","Customer Care","Technical Support"],"scopes":{"All teams":{"tickets_total":400,"noise":28,"tickets_real":372,"status":{"Closed":342,"Pending":32,"Open":26},"frt_n":372,"frt_median":4.6,"frt_p90":24.3,"frt_within_4h":47.6,"frt_within_8h":61.3,"frt_within_24h":89.8,"frt_within_24h_calendar":87.4,"res_n":314,"res_median":33.3,"res_p90":249.9,"res_within_24h":44.9,"res_within_72h":69.7,"res_within_7d":84.7,"auto_closed":58,"res_median_excl_auto":23.2,"res_p90_excl_auto":125,"res_within_72h_excl_auto":77.9,"wait_customer_pct":77,"close_median":33.3,"close_p90":249.9,"avg_messages":5.3,"avg_agent_replies":2.3,"reopen_pct":7.5,"open_backlog":58,"first_reply_resolved_pct":80.3,"resolved_pct":100,"clarity":3.99,"empathy":3.37,"ownership":3.65,"sentiment":{"Unknown":140,"Positive":106,"Neutral":97,"Negative":29},"pos_neutral_pct":87.5,"pos_neutral_by_week":{"2026-08-31":86.8,"2026-09-07":87.3,"2026-09-14":86.5,"2026-09-21":89.3},"by_day":{"2026-08-31":16,"2026-09-01":11,"2026-09-02":27,"2026-09-03":18,"2026-09-04":18,"2026-09-05":5,"2026-09-06":5,"2026-09-07":24,"2026-09-08":20,"2026-09-09":23,"2026-09-10":18,"2026-09-11":20,"2026-09-12":3,"2026-09-13":2,"2026-09-14":18,"2026-09-15":19,"2026-09-16":14,"2026-09-17":23,"2026-09-18":13,"2026-09-19":2,"2026-09-20":2,"2026-09-21":20,"2026-09-22":21,"2026-09-23":17,"2026-09-24":15,"2026-09-25":19,"2026-09-26":2,"2026-09-27":5},"by_weekday":{"Wednesday":81,"Monday":78,"Thursday":74,"Tuesday":71,"Friday":70,"Sunday":14,"Saturday":12},"by_hour":{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":18,"7":38,"8":36,"9":28,"10":21,"11":34,"12":29,"13":32,"14":27,"15":31,"16":28,"17":33,"18":23,"19":22,"20":0,"21":0,"22":0,"23":0},"by_source":{"Email":130,"Portal":92,"Phone":87,"Chat":63},"by_tier":{"(none)":138,"Premium":118,"Standard":116},"by_theme":[{"theme":"CONFIG_HOWTO","count":45,"share":12.1,"frt_median":4.7,"res_median":92.5,"avg_messages":6.8,"frr_pct":72.7,"posneu_pct":87,"top_sub_themes":["Configure custom check (21)","How to set thresholds (12)","Set up maintenance window (12)"],"preventable":{"Self-service/KB":45}},{"theme":"ACCOUNT_ACCESS","count":40,"share":10.8,"frt_median":3.3,"res_median":17.8,"avg_messages":3.6,"frr_pct":94.7,"posneu_pct":86.2,"top_sub_themes":["Invitation link expired (14)","Cannot log in to customer portal (13)","Password reset link fails (13)"],"preventable":{"Self-service/KB":40}},{"theme":"BUG_ERROR","count":35,"share":9.4,"frt_median":5,"res_median":88.4,"avg_messages":7.4,"frr_pct":65.4,"posneu_pct":94.4,"top_sub_themes":["Export fails with error 500 (13)","Agent crashes after update (11)","Dashboard widget shows no data (11)"],"preventable":{"Product":35}},{"theme":"LICENSE_ACTIVATION","count":35,"share":9.4,"frt_median":4.6,"res_median":13.9,"avg_messages":3.5,"frr_pct":93.8,"posneu_pct":88,"top_sub_themes":["License certificate request (15)","Add-on license activation (12)","Move license to new server (8)"],"preventable":{"Self-service/KB":35}},{"theme":"INSTALL_UPGRADE","count":33,"share":8.9,"frt_median":10.6,"res_median":69.8,"avg_messages":7.3,"frr_pct":68,"posneu_pct":87.5,"top_sub_themes":["Service fails to start after upgrade (18)","Upgrade path from old version (15)"],"preventable":{"Product":33}},{"theme":"BILLING_INVOICE","count":25,"share":6.7,"frt_median":3.1,"res_median":17.6,"avg_messages":3.8,"frr_pct":87,"posneu_pct":88.9,"top_sub_themes":["Invoice copy request (11)","Payment confirmation (9)","Update billing address (5)"],"preventable":{"Process/Automation":25}},{"theme":"USERS_SSO","count":23,"share":6.2,"frt_median":5.2,"res_median":74.3,"avg_messages":7,"frr_pct":68.4,"posneu_pct":86.7,"top_sub_themes":["User permissions reset (13)","SSO login loop (10)"],"preventable":{"Product":23}},{"theme":"PERFORMANCE_STABILITY","count":22,"share":5.9,"frt_median":7.6,"res_median":107.5,"avg_messages":6.3,"frr_pct":72.2,"posneu_pct":90.9,"top_sub_themes":["High memory usage on server (11)","Web UI slow (11)"],"preventable":{"Product":22}},{"theme":"RENEWAL_CANCEL","count":18,"share":4.8,"frt_median":3.3,"res_median":10.2,"avg_messages":3.7,"frr_pct":75,"posneu_pct":90,"top_sub_themes":["Cancel auto-renewal (10)","Renewal quote request (8)"],"preventable":{"Not preventable":18}},{"theme":"SALES_QUOTE_TRIAL","count":17,"share":4.6,"frt_median":2.1,"res_median":7.8,"avg_messages":3.6,"frr_pct":87.5,"posneu_pct":81.8,"top_sub_themes":["Trial extension request (10)","Upgrade quote (6)","Pricing question (1)"],"preventable":{"Not preventable":17}},{"theme":"ACCOUNT_DATA","count":16,"share":4.3,"frt_median":2,"res_median":6.4,"avg_messages":3,"frr_pct":100,"posneu_pct":88.9,"top_sub_themes":["Company name change (8)","Primary contact change (8)"],"preventable":{"Process/Automation":16}},{"theme":"NOTIFICATIONS","count":14,"share":3.8,"frt_median":2.7,"res_median":18,"avg_messages":4.3,"frr_pct":91.7,"posneu_pct":88.9,"top_sub_themes":["Duplicate notifications (8)","Email alerts not delivered (6)"],"preventable":{"Self-service/KB":14}},{"theme":"CALLBACK_CHASE","count":12,"share":3.2,"frt_median":6.6,"res_median":9,"avg_messages":2.8,"frr_pct":91.7,"posneu_pct":83.3,"top_sub_themes":["Callback request (6)","Status update request (6)"],"preventable":{"Process/Automation":12}},{"theme":"INTEGRATION_API","count":11,"share":3,"frt_median":3.7,"res_median":88.8,"avg_messages":7.2,"frr_pct":62.5,"posneu_pct":100,"top_sub_themes":["Webhook not firing (6)","API token returns 401 (5)"],"preventable":{"Product":11}},{"theme":"SECURITY","count":10,"share":2.7,"frt_median":4.8,"res_median":198.5,"avg_messages":9.5,"frr_pct":42.9,"posneu_pct":83.3,"top_sub_themes":["Certificate renewal (5)","Vulnerability scan finding (5)"],"preventable":{"Self-service/KB":10}},{"theme":"MIGRATION","count":9,"share":2.4,"frt_median":3.8,"res_median":100.3,"avg_messages":6,"frr_pct":77.8,"posneu_pct":80,"top_sub_themes":["Move server to new VM (9)"],"preventable":{"Self-service/KB":9}},{"theme":"VENDOR_COMPLIANCE","count":7,"share":1.9,"frt_median":7.9,"res_median":14.6,"avg_messages":3.1,"frr_pct":83.3,"posneu_pct":71.4,"top_sub_themes":["Supplier registration form (5)","Security questionnaire (2)"],"preventable":{"Self-service/KB":7}}],"by_product_area":{"Core Product":102,"Customer Portal \u0026 Billing":81,"None":54,"Installation \u0026 Upgrade":42,"Licensing \u0026 Activation":35,"Users, SSO \u0026 Access":23,"Notifications":14,"Integrations \u0026 API":11,"Security":10},"by_root_cause":{"Licensing/commercial process":85,"Customer how-to question":71,"Product usability/UX gap":56,"Product defect/bug":46,"Portal/self-service gap":40,"Customer environment/config":36,"Internal process/routing":28,"Documentation/KB gap":10},"by_preventable":{"Self-service/KB":160,"Product":124,"Process/Automation":53,"Not preventable":35},"by_sensor":{"Agent/Connector":29,"Backend/Server":24,"Email":22,"API":19,"Database":17,"Web UI":13},"prod_n":124,"by_prod_area":{"Core Product":57,"Installation \u0026 Upgrade":33,"Users, SSO \u0026 Access":23,"Integrations \u0026 API":11},"frt_buckets":{"\u003c1h":63,"1-4h":114,"4-8h":51,"8-24h":106,"1-2d":25,"\u003e2d":13},"res_buckets":{"\u003c1d":141,"1-3d":78,"3-7d":47,"7-14d":15,"14-30d":0}},"Customer Care":{"tickets_total":185,"noise":15,"tickets_real":170,"status":{"Closed":172,"Open":10,"Pending":3},"frt_n":170,"frt_median":3.3,"frt_p90":19,"frt_within_4h":52.9,"frt_within_8h":62.9,"frt_within_24h":92.9,"frt_within_24h_calendar":90.6,"res_n":157,"res_median":14.1,"res_p90":55.9,"res_within_24h":66.9,"res_within_72h":96.8,"res_within_7d":100,"auto_closed":0,"res_median_excl_auto":14.1,"res_p90_excl_auto":55.9,"res_within_72h_excl_auto":96.8,"wait_customer_pct":37,"close_median":14.1,"close_p90":55.9,"avg_messages":3.5,"avg_agent_replies":1.8,"reopen_pct":8.8,"open_backlog":13,"first_reply_resolved_pct":90.4,"resolved_pct":100,"clarity":4.03,"empathy":3.35,"ownership":3.63,"sentiment":{"Unknown":55,"Neutral":52,"Positive":47,"Negative":16},"pos_neutral_pct":86.1,"pos_neutral_by_week":{"2026-08-31":87.5,"2026-09-07":81.1,"2026-09-14":82.6,"2026-09-21":95.7},"by_day":{"2026-08-31":11,"2026-09-01":8,"2026-09-02":10,"2026-09-03":8,"2026-09-04":10,"2026-09-05":3,"2026-09-06":4,"2026-09-07":13,"2026-09-08":8,"2026-09-09":11,"2026-09-10":10,"2026-09-11":9,"2026-09-13":1,"2026-09-14":6,"2026-09-15":9,"2026-09-16":8,"2026-09-17":9,"2026-09-18":4,"2026-09-21":6,"2026-09-22":11,"2026-09-23":5,"2026-09-24":8,"2026-09-25":10,"2026-09-26":1,"2026-09-27":2},"by_weekday":{"Monday":36,"Tuesday":36,"Thursday":35,"Wednesday":34,"Friday":33,"Sunday":7,"Saturday":4},"by_hour":{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":12,"7":18,"8":11,"9":11,"10":8,"11":15,"12":17,"13":15,"14":17,"15":13,"16":12,"17":19,"18":14,"19":3,"20":0,"21":0,"22":0,"23":0},"by_source":{"Email":56,"Phone":38,"Portal":38,"Chat":38},"by_tier":{"Standard":58,"Premium":56,"(none)":56},"by_theme":[{"theme":"ACCOUNT_ACCESS","count":40,"share":23.5,"frt_median":3.3,"res_median":17.8,"avg_messages":3.6,"frr_pct":94.7,"posneu_pct":86.2,"top_sub_themes":["Invitation link expired (14)","Cannot log in to customer portal (13)","Password reset link fails (13)"],"preventable":{"Self-service/KB":40}},{"theme":"LICENSE_ACTIVATION","count":35,"share":20.6,"frt_median":4.6,"res_median":13.9,"avg_messages":3.5,"frr_pct":93.8,"posneu_pct":88,"top_sub_themes":["License certificate request (15)","Add-on license activation (12)","Move license to new server (8)"],"preventable":{"Self-service/KB":35}},{"theme":"BILLING_INVOICE","count":25,"share":14.7,"frt_median":3.1,"res_median":17.6,"avg_messages":3.8,"frr_pct":87,"posneu_pct":88.9,"top_sub_themes":["Invoice copy request (11)","Payment confirmation (9)","Update billing address (5)"],"preventable":{"Process/Automation":25}},{"theme":"RENEWAL_CANCEL","count":18,"share":10.6,"frt_median":3.3,"res_median":10.2,"avg_messages":3.7,"frr_pct":75,"posneu_pct":90,"top_sub_themes":["Cancel auto-renewal (10)","Renewal quote request (8)"],"preventable":{"Not preventable":18}},{"theme":"SALES_QUOTE_TRIAL","count":17,"share":10,"frt_median":2.1,"res_median":7.8,"avg_messages":3.6,"frr_pct":87.5,"posneu_pct":81.8,"top_sub_themes":["Trial extension request (10)","Upgrade quote (6)","Pricing question (1)"],"preventable":{"Not preventable":17}},{"theme":"ACCOUNT_DATA","count":16,"share":9.4,"frt_median":2,"res_median":6.4,"avg_messages":3,"frr_pct":100,"posneu_pct":88.9,"top_sub_themes":["Company name change (8)","Primary contact change (8)"],"preventable":{"Process/Automation":16}},{"theme":"CALLBACK_CHASE","count":12,"share":7.1,"frt_median":6.6,"res_median":9,"avg_messages":2.8,"frr_pct":91.7,"posneu_pct":83.3,"top_sub_themes":["Callback request (6)","Status update request (6)"],"preventable":{"Process/Automation":12}},{"theme":"VENDOR_COMPLIANCE","count":7,"share":4.1,"frt_median":7.9,"res_median":14.6,"avg_messages":3.1,"frr_pct":83.3,"posneu_pct":71.4,"top_sub_themes":["Supplier registration form (5)","Security questionnaire (2)"],"preventable":{"Self-service/KB":7}}],"by_product_area":{"Customer Portal \u0026 Billing":81,"None":54,"Licensing \u0026 Activation":35},"by_root_cause":{"Licensing/commercial process":85,"Portal/self-service gap":40,"Internal process/routing":28,"Customer how-to question":17},"by_preventable":{"Self-service/KB":82,"Process/Automation":53,"Not preventable":35},"by_sensor":{},"prod_n":0,"by_prod_area":{},"frt_buckets":{"\u003c1h":36,"1-4h":54,"4-8h":17,"8-24h":51,"1-2d":7,"\u003e2d":5},"res_buckets":{"\u003c1d":105,"1-3d":47,"3-7d":5,"7-14d":0,"14-30d":0}},"Technical Support":{"tickets_total":215,"noise":13,"tickets_real":202,"status":{"Closed":170,"Pending":29,"Open":16},"frt_n":202,"frt_median":5,"frt_p90":30,"frt_within_4h":43.1,"frt_within_8h":59.9,"frt_within_24h":87.1,"frt_within_24h_calendar":84.7,"res_n":157,"res_median":88.4,"res_p90":302.7,"res_within_24h":22.9,"res_within_72h":42.7,"res_within_7d":69.4,"auto_closed":58,"res_median_excl_auto":68.9,"res_p90_excl_auto":186.7,"res_within_72h_excl_auto":54,"wait_customer_pct":84,"close_median":88.4,"close_p90":302.7,"avg_messages":6.9,"avg_agent_replies":2.8,"reopen_pct":6.4,"open_backlog":45,"first_reply_resolved_pct":70.1,"resolved_pct":100,"clarity":3.96,"empathy":3.39,"ownership":3.66,"sentiment":{"Unknown":85,"Positive":59,"Neutral":45,"Negative":13},"pos_neutral_pct":88.9,"pos_neutral_by_week":{"2026-08-31":85.7,"2026-09-07":94.1,"2026-09-14":89.7,"2026-09-21":84.8},"by_day":{"2026-08-31":5,"2026-09-01":3,"2026-09-02":17,"2026-09-03":10,"2026-09-04":8,"2026-09-05":2,"2026-09-06":1,"2026-09-07":11,"2026-09-08":12,"2026-09-09":12,"2026-09-10":8,"2026-09-11":11,"2026-09-12":3,"2026-09-13":1,"2026-09-14":12,"2026-09-15":10,"2026-09-16":6,"2026-09-17":14,"2026-09-18":9,"2026-09-19":2,"2026-09-20":2,"2026-09-21":14,"2026-09-22":10,"2026-09-23":12,"2026-09-24":7,"2026-09-25":9,"2026-09-26":1,"2026-09-27":3},"by_weekday":{"Wednesday":47,"Monday":42,"Thursday":39,"Friday":37,"Tuesday":35,"Saturday":8,"Sunday":7},"by_hour":{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":6,"7":20,"8":25,"9":17,"10":13,"11":19,"12":12,"13":17,"14":10,"15":18,"16":16,"17":14,"18":9,"19":19,"20":0,"21":0,"22":0,"23":0},"by_source":{"Email":74,"Portal":54,"Phone":49,"Chat":25},"by_tier":{"(none)":82,"Premium":62,"Standard":58},"by_theme":[{"theme":"CONFIG_HOWTO","count":45,"share":22.3,"frt_median":4.7,"res_median":92.5,"avg_messages":6.8,"frr_pct":72.7,"posneu_pct":87,"top_sub_themes":["Configure custom check (21)","How to set thresholds (12)","Set up maintenance window (12)"],"preventable":{"Self-service/KB":45}},{"theme":"BUG_ERROR","count":35,"share":17.3,"frt_median":5,"res_median":88.4,"avg_messages":7.4,"frr_pct":65.4,"posneu_pct":94.4,"top_sub_themes":["Export fails with error 500 (13)","Agent crashes after update (11)","Dashboard widget shows no data (11)"],"preventable":{"Product":35}},{"theme":"INSTALL_UPGRADE","count":33,"share":16.3,"frt_median":10.6,"res_median":69.8,"avg_messages":7.3,"frr_pct":68,"posneu_pct":87.5,"top_sub_themes":["Service fails to start after upgrade (18)","Upgrade path from old version (15)"],"preventable":{"Product":33}},{"theme":"USERS_SSO","count":23,"share":11.4,"frt_median":5.2,"res_median":74.3,"avg_messages":7,"frr_pct":68.4,"posneu_pct":86.7,"top_sub_themes":["User permissions reset (13)","SSO login loop (10)"],"preventable":{"Product":23}},{"theme":"PERFORMANCE_STABILITY","count":22,"share":10.9,"frt_median":7.6,"res_median":107.5,"avg_messages":6.3,"frr_pct":72.2,"posneu_pct":90.9,"top_sub_themes":["High memory usage on server (11)","Web UI slow (11)"],"preventable":{"Product":22}},{"theme":"NOTIFICATIONS","count":14,"share":6.9,"frt_median":2.7,"res_median":18,"avg_messages":4.3,"frr_pct":91.7,"posneu_pct":88.9,"top_sub_themes":["Duplicate notifications (8)","Email alerts not delivered (6)"],"preventable":{"Self-service/KB":14}},{"theme":"INTEGRATION_API","count":11,"share":5.4,"frt_median":3.7,"res_median":88.8,"avg_messages":7.2,"frr_pct":62.5,"posneu_pct":100,"top_sub_themes":["Webhook not firing (6)","API token returns 401 (5)"],"preventable":{"Product":11}},{"theme":"SECURITY","count":10,"share":5,"frt_median":4.8,"res_median":198.5,"avg_messages":9.5,"frr_pct":42.9,"posneu_pct":83.3,"top_sub_themes":["Certificate renewal (5)","Vulnerability scan finding (5)"],"preventable":{"Self-service/KB":10}},{"theme":"MIGRATION","count":9,"share":4.5,"frt_median":3.8,"res_median":100.3,"avg_messages":6,"frr_pct":77.8,"posneu_pct":80,"top_sub_themes":["Move server to new VM (9)"],"preventable":{"Self-service/KB":9}}],"by_product_area":{"Core Product":102,"Installation \u0026 Upgrade":42,"Users, SSO \u0026 Access":23,"Notifications":14,"Integrations \u0026 API":11,"Security":10},"by_root_cause":{"Product usability/UX gap":56,"Customer how-to question":54,"Product defect/bug":46,"Customer environment/config":36,"Documentation/KB gap":10},"by_preventable":{"Product":124,"Self-service/KB":78},"by_sensor":{"Agent/Connector":29,"Backend/Server":24,"Email":22,"API":19,"Database":17,"Web UI":13},"prod_n":124,"by_prod_area":{"Core Product":57,"Installation \u0026 Upgrade":33,"Users, SSO \u0026 Access":23,"Integrations \u0026 API":11},"frt_buckets":{"\u003c1h":27,"1-4h":60,"4-8h":34,"8-24h":55,"1-2d":18,"\u003e2d":8},"res_buckets":{"\u003c1d":36,"1-3d":31,"3-7d":42,"7-14d":15,"14-30d":0}}},"agents":[]};
+const N = Object.assign({
+  "summary": "<div class='callout'><p style='margin:0 0 8px'><b>DEMO DATA: Contoso CloudWatch is a fictional company and every ticket in this report is synthetic.</b> This section is where you write your executive summary: 4-6 bullets, strengths first, then the biggest levers.</p><ul><li><b>Lead with what works</b>, e.g. first response and first contact resolution.</li><li><b>Explain the big numbers</b>, e.g. how much open time is spent waiting on customers.</li><li><b>Name the systemic drivers</b>: product, self-service and process, not people.</li></ul></div>",
+  "themeInsights": {
+    "All teams": [
+      "<b>Example:</b> account access and licensing make up most Customer Care volume. Both are candidates for self-service.",
+      "<b>Example:</b> errors after upgrades show up across several themes. Publishing known issues at release time would head off repeat tickets."
+    ],
+    "Customer Care": ["<b>Example:</b> password reset and invitation-link failures are the top driver and are resolved quickly, but they're avoidable."],
+    "Technical Support": ["<b>Example:</b> most open time is spent waiting for customers to send logs or test a fix. Tickets close only after several follow-up reminders."]
+  },
+  "improve": [
+    { "title": "1. Keep noise out of the queue", "body": "Auto-replies, bounces and spam reach agents.", "bullets": ["Rules to auto-close auto-replies and bounces.", "Move test tickets to a sandbox group."], "tags": ["Process/Automation", "Quick win"] },
+    { "title": "2. Self-service account access", "body": "Account access is the top commercial driver.", "bullets": ["Let users re-send invitations.", "Show a specific error when a reset link fails."], "tags": ["Self-service", "Customer Care"] },
+    { "title": "3. Knowledge base for repeat how-to questions", "body": "Configuration questions recur across customers.", "bullets": ["Guides for thresholds, custom checks and maintenance windows."], "tags": ["Self-service/KB", "Technical Support"] }
+  ],
+  "agentLead": "Recognition of the practices behind the team's strongest results. Agents are compared only within their own team.",
+  "agents": [
+    { "title": "Example: what great looks like", "bullets": ["Explain the root cause, not just the fix.", "Follow up proactively and set expectations for next steps.", "Acknowledge the business impact before troubleshooting."], "tags": ["Coaching themes"] }
+  ],
+  "method": "<p><b>Demo data:</b> generated by <code>demo/Generate-DemoData.ps1</code>. In a real run, every ticket's conversation is read by AI agents against <code>prompts/tagging-instructions.md</code>, and the metrics are calculated from Freshdesk timestamps.</p><p><b>Definitions:</b> first response is measured in weekday hours; FCR is the share of resolved tickets closed with two or fewer customer replies; 'closed after customer stopped responding' is detected from the follow-up note patterns in <code>config.json</code>; 'time waiting on customer' splits open time by who spoke last.</p>"
+}
+, {showAgentTables:false});
+const P = [
+    {
+        "title":  "Make upgrades fail-safe with a pre-flight check and automatic rollback",
+        "product_area":  "Installation \u0026 Upgrade",
+        "tickets":  33,
+        "ticket_ids":  [
+                           900023,
+                           900048,
+                           900060,
+                           900109
+                       ],
+        "problem":  "DEMO: after upgrading, the service sometimes fails to start and customers can\u0027t find the supported upgrade path from older versions.",
+        "evidence":  "DEMO: illustrative only. In a real run this states the ticket count, median resolution and messages per ticket.",
+        "recommendation":  [
+                               "Verify the service starts after install and roll back automatically if it doesn\u0027t.",
+                               "Show the required upgrade path in-product and on the download page."
+                           ],
+        "type":  "Bug fix"
+    },
+    {
+        "title":  "Replace generic SSO and API errors with specific, actionable messages",
+        "product_area":  "Users, SSO \u0026 Access",
+        "tickets":  23,
+        "ticket_ids":  [
+                           900013,
+                           900032,
+                           900046,
+                           900085
+                       ],
+        "problem":  "DEMO: SSO login loops and 401 API errors give no hint about the cause.",
+        "evidence":  "DEMO: illustrative only.",
+        "recommendation":  [
+                               "Name the missing permission or expired secret in the error.",
+                               "Warn admins before SSO secrets expire."
+                           ],
+        "type":  "UX improvement"
+    }
+];
+
+const THEME_LABELS = {"ACCOUNT_ACCESS":"Account access \u0026 login","LICENSE_ACTIVATION":"Licensing \u0026 activation","RENEWAL_CANCEL":"Renewals \u0026 cancellations","BILLING_INVOICE":"Billing \u0026 invoices","VENDOR_COMPLIANCE":"Vendor \u0026 compliance forms","ACCOUNT_DATA":"Account \u0026 contact changes","SALES_QUOTE_TRIAL":"Sales, quotes \u0026 trials","CALLBACK_CHASE":"Callbacks \u0026 status chasing","INSTALL_UPGRADE":"Install \u0026 upgrade","MIGRATION":"Migration \u0026 moves","CONFIG_HOWTO":"Configuration \u0026 how-to","BUG_ERROR":"Errors \u0026 defects","PERFORMANCE_STABILITY":"Performance \u0026 stability","INTEGRATION_API":"Integrations \u0026 API","NOTIFICATIONS":"Alerts \u0026 notifications","USERS_SSO":"Users, SSO \u0026 permissions","SECURITY":"Security \u0026 certificates","REPORTING_DATA":"Reports \u0026 data export","FEATURE_REQUEST":"Feature requests","NOISE":"Noise","UNTAGGED":"Untagged"};
+const tl = k => THEME_LABELS[k] || k;
+const fmtH = h => h == null ? '–' : (h < 48 ? (Math.round(h * 10) / 10) + ' h' : (Math.round(h / 24 * 10) / 10) + ' d');
+const fmtP = p => p == null ? '–' : p + '%';
+const fmtN = n => n == null ? '–' : n.toLocaleString('en-US');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const entries = o => Object.entries(o || {});
+const ALL = M.scopeOrder[0];
+let scope = ALL;
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById('tip');
+function bindTip(el, html) {
+  el.addEventListener('mouseenter', () => { tip.innerHTML = html; tip.style.opacity = 1; });
+  el.addEventListener('mousemove', e => { tip.style.left = Math.min(e.clientX + 14, innerWidth - 330) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+  el.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+}
+const NS = 'http://www.w3.org/2000/svg';
+function S(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+function tableView(host, head, rows) {
+  const d = document.createElement('details'); d.className = 'tv';
+  d.innerHTML = '<summary>Show as table</summary><table><thead><tr>' + head.map((h, i) => `<th class="${i ? 'n' : ''}">${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + r.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+  host.appendChild(d);
+}
+/* rounded-end bar path: square at baseline, 4px radius at data end */
+function hPath(x, y, w, h) { const r = Math.min(4, w / 2, h / 2); return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`; }
+function vPath(x, y, w, h) { const r = Math.min(4, w / 2, h / 2); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; }
+
+/* horizontal bars, single series */
+function hbar(id, data, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  data = data.filter(d => d[1] > 0);
+  if (!data.length) { host.innerHTML = '<p class="note">No data.</p>'; return; }
+  const total = opts.total ?? data.reduce((a, d) => a + d[1], 0);
+  const W = Math.max(300, host.clientWidth || 560), labelW = Math.min(opts.labelW || 200, W * 0.42), rowH = 24, barH = 14, valW = 84;
+  const H = data.length * rowH + 4;
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.aria || id }, host);
+  const max = Math.max(...data.map(d => d[1]));
+  const plotW = W - labelW - valW;
+  S('line', { x1: labelW, x2: labelW, y1: 0, y2: H, class: 'baseline' }, svg);
+  data.forEach((d, i) => {
+    const y = i * rowH + (rowH - barH) / 2, w = Math.max(1, d[1] / max * plotW);
+    const g = S('g', { class: 'bar' }, svg);
+    const t = S('text', { x: labelW - 8, y: y + barH / 2 + 4, 'text-anchor': 'end', class: 'lbl' }, g); const maxCh = Math.floor(labelW / 6.6); t.textContent = d[0].length > maxCh ? d[0].slice(0, maxCh - 1) + '…' : d[0];
+    S('path', { d: hPath(labelW, y, w, barH), fill: opts.color || 'var(--series-1)', class: 'mark' }, g);
+    const v = S('text', { x: labelW + w + 6, y: y + barH / 2 + 4, class: 'val' }, g);
+    v.textContent = fmtN(d[1]) + (opts.pct !== false ? '  ·  ' + Math.round(d[1] / total * 100) + '%' : '');
+    const hit = S('rect', { x: 0, y: i * rowH, width: W, height: rowH, class: 'hit' }, g);
+    bindTip(hit, `<b>${esc(d[0])}</b><br>${fmtN(d[1])} tickets (${(d[1] / total * 100).toFixed(1)}%)` + (d[2] ? '<br>' + esc(d[2]) : ''));
+  });
+  tableView(host, [opts.labelHead || 'Category', 'Tickets', 'Share'], data.map(d => [d[0], fmtN(d[1]), (d[1] / total * 100).toFixed(1) + '%']));
+}
+
+/* vertical bars, single series */
+function vbar(id, data, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const W = Math.max(260, host.clientWidth || 560), H = opts.H || 200, padL = 36, padB = 26, padT = 16;
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.aria || id }, host);
+  const max = niceMax(Math.max(1, ...data.map(d => d[1])));
+  const plotW = W - padL, plotH = H - padB - padT, n = data.length;
+  const slot = plotW / n, bw = Math.max(2, Math.min(40, slot - 2));
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + plotH - k / 4 * plotH;
+    S('line', { x1: padL, x2: W, y1: y, y2: y, class: k ? 'gridline' : 'baseline' }, svg);
+    const t = S('text', { x: padL - 6, y: y + 4, 'text-anchor': 'end' }, svg); t.textContent = fmtN(Math.round(max * k / 4));
+  }
+  const every = opts.labelEvery || Math.ceil(n / 12);
+  data.forEach((d, i) => {
+    const h = d[1] / max * plotH, x = padL + i * slot + (slot - bw) / 2, y = padT + plotH - h;
+    const g = S('g', { class: 'bar' }, svg);
+    if (h > 0) S('path', { d: vPath(x, y, bw, h), fill: (opts.colorFn && opts.colorFn(d)) || 'var(--series-1)', class: 'mark' }, g);
+    if (i % every === 0) { const t = S('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle' }, g); t.textContent = opts.xfmt ? opts.xfmt(d[0]) : d[0]; }
+    if (opts.showVals) { const v = S('text', { x: x + bw / 2, y: y - 4, 'text-anchor': 'middle', class: 'val' }, g); v.textContent = fmtN(d[1]) + (opts.pct ? '%' : ''); }
+    const hit = S('rect', { x: padL + i * slot, y: padT, width: slot, height: plotH, class: 'hit' }, g);
+    bindTip(hit, `<b>${esc(opts.tipfmt ? opts.tipfmt(d[0]) : d[0])}</b><br>${fmtN(d[1])}${opts.pct ? '%' : ' tickets'}`);
+  });
+  tableView(host, [opts.labelHead || 'Bucket', opts.pct ? 'Share' : 'Tickets'], data.map(d => [d[0], fmtN(d[1]) + (opts.pct ? '%' : '')]));
+}
+
+/* ---------- renderers ---------- */
+function tiles() {
+  const s = M.scopes[scope];
+  const T = [
+    ['Customer tickets', fmtN(s.tickets_real), `${fmtN(s.tickets_total)} total incl. ${fmtN(s.noise)} noise`],
+    ['Median first response', fmtH(s.frt_median), `Excl. weekend hours · 90th percentile ${fmtH(s.frt_p90)}`],
+    ['First response ≤ 24 h', fmtP(s.frt_within_24h), `Excl. weekend hours · ≤ 8 h: ${fmtP(s.frt_within_8h)}`],
+    ['Median time to resolution', fmtH(s.res_median_excl_auto), s.auto_closed ? `Excl. ${fmtN(s.auto_closed)} closed after the customer stopped responding to follow-ups; incl. them ${fmtH(s.res_median)}` : `90th percentile ${fmtH(s.res_p90)}`],
+    ['Open time waiting on customer', fmtP(s.wait_customer_pct), 'Share of open time spent waiting for the customer to reply'],
+    ['Resolved ≤ 72 h', fmtP(s.res_within_72h_excl_auto), s.auto_closed ? `Excl. tickets closed after no customer reply · incl. them ${fmtP(s.res_within_72h)}` : `≤ 24 h: ${fmtP(s.res_within_24h)} · ≤ 7 d: ${fmtP(s.res_within_7d)}`],
+    ['Ended positive or neutral', fmtP(s.pos_neutral_pct), 'Customer tone at end of ticket, where visible'],
+    ['Agent replies / ticket', s.avg_agent_replies, 'Public replies to the customer'],
+    ['First contact resolution (FCR)', fmtP(s.first_reply_resolved_pct), 'Resolved tickets with ≤ 2 customer replies'],
+    ['Customer wrote back after resolution', fmtP(s.reopen_pct), 'Freshdesk reopen flag (often thank-you replies)'],
+    ['Communication quality', s.clarity ? ((s.clarity + s.empathy + s.ownership) / 3).toFixed(2) + ' / 5' : '–', `3 = solid, 4 = good · Clarity ${s.clarity ?? '–'} · Empathy ${s.empathy ?? '–'} · Ownership ${s.ownership ?? '–'}`],
+    ['Open / pending now', fmtN(s.open_backlog), 'Not yet resolved or closed'],
+  ];
+  document.getElementById('tiles').innerHTML = T.map(t => `<div class="tile"><div class="k">${t[0]}</div><div class="v">${t[1]}</div><div class="d">${t[2]}</div></div>`).join('');
+}
+function compare() {
+  const cols = M.scopeOrder;
+  const R = [
+    ['Tickets (total)', s => fmtN(s.tickets_total)], ['Customer tickets (excl. noise)', s => fmtN(s.tickets_real)], ['Noise', s => fmtN(s.noise)],
+    ['Median first response (excl. weekends)', s => fmtH(s.frt_median)], ['90th pct first response (excl. weekends)', s => fmtH(s.frt_p90)], ['First response ≤ 8 h (excl. weekends)', s => fmtP(s.frt_within_8h)],
+    ['First response ≤ 24 h (excl. weekends)', s => fmtP(s.frt_within_24h)],
+    ['Median resolution (excl. no customer reply)', s => fmtH(s.res_median_excl_auto)], ['Resolved ≤ 72 h (excl. no customer reply)', s => fmtP(s.res_within_72h_excl_auto)],
+    ['Open time waiting on customer', s => fmtP(s.wait_customer_pct)],
+    ['Closed after customer stopped responding (multiple follow-ups)', s => fmtN(s.auto_closed)], ['Median resolution (all resolved)', s => fmtH(s.res_median)], ['Resolved ≤ 7 days (all)', s => fmtP(s.res_within_7d)],
+    ['Agent replies per ticket', s => s.avg_agent_replies],
+    ['First contact resolution (≤ 2 customer replies)', s => fmtP(s.first_reply_resolved_pct)], ['Customer need met', s => fmtP(s.resolved_pct)], ['Customer wrote back after resolution', s => fmtP(s.reopen_pct)],
+    ['Clarity (1–5)', s => s.clarity ?? '–'], ['Empathy (1–5)', s => s.empathy ?? '–'], ['Ownership (1–5)', s => s.ownership ?? '–'],
+    ['Ended positive or neutral', s => fmtP(s.pos_neutral_pct)], ['Customer need met', s => fmtP(s.resolved_pct)],
+    ['Open / pending now', s => fmtN(s.open_backlog)],
+  ];
+  document.getElementById('compareTable').innerHTML = '<thead><tr><th>Metric</th>' + cols.map(c => `<th class="n">${c}</th>`).join('') + '</tr></thead><tbody>' +
+    R.map(r => `<tr><td>${r[0]}</td>` + cols.map(c => `<td class="n">${r[1](M.scopes[c])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+}
+const WD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+function volume() {
+  const s = M.scopes[scope];
+  const days = entries(s.by_day);
+  vbar('chDay', days, { H: 220, labelEvery: 3, xfmt: d => d.slice(5), tipfmt: d => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }), labelHead: 'Date' });
+  vbar('chWeekday', WD.map(d => [d.slice(0, 3), s.by_weekday[d] || 0]), { W: 360, H: 200, showVals: true, labelHead: 'Weekday' });
+  vbar('chHour', entries(s.by_hour).map(e => [e[0], e[1]]), { W: 360, H: 200, labelEvery: 3, tipfmt: h => h + ':00–' + h + ':59 UTC', labelHead: 'Hour (UTC)' });
+  hbar('chSource', entries(s.by_source), { labelW: 130, labelHead: 'Channel' });
+  hbar('chTier', entries(s.by_tier), { labelW: 130, labelHead: 'Tier' });
+  hbar('chStatus', entries(s.status), { labelW: 130, labelHead: 'Status' });
+  vbar('chSent', entries(s.pos_neutral_by_week).map(e => ['wk ' + e[0].slice(5), e[1]]), { W: 360, H: 200, showVals: true, labelEvery: 1, labelHead: 'Week starting', pct: true });
+}
+function speed() {
+  const s = M.scopes[scope];
+  vbar('chFrt', entries(s.frt_buckets), { H: 210, showVals: true, labelEvery: 1, labelHead: 'First response' });
+  vbar('chRes', entries(s.res_buckets), { H: 210, showVals: true, labelEvery: 1, labelHead: 'Resolution' });
+  document.getElementById('themeSpeed').innerHTML = '<thead><tr><th>Contact reason</th><th class="n">Tickets</th><th class="n">Median 1st response</th><th class="n">Median resolution</th><th class="n">Messages / ticket</th><th class="n">FCR</th><th class="n">Positive / neutral end</th></tr></thead><tbody>' +
+    s.by_theme.map(t => `<tr><td>${esc(tl(t.theme))}</td><td class="n">${fmtN(t.count)}</td><td class="n">${fmtH(t.frt_median)}</td><td class="n">${fmtH(t.res_median)}</td><td class="n">${t.avg_messages}</td><td class="n">${fmtP(t.frr_pct)}</td><td class="n">${fmtP(t.posneu_pct)}</td></tr>`).join('') + '</tbody>';
+}
+function themes() {
+  const s = M.scopes[scope];
+  hbar('chTheme', s.by_theme.map(t => [tl(t.theme), t.count, (t.top_sub_themes || []).slice(0, 3).join(' · ')]), { labelW: 220, labelHead: 'Contact reason' });
+  hbar('chRoot', entries(s.by_root_cause).filter(e => e[0] !== 'Noise' && e[0] !== '(blank)'), { labelW: 220, labelHead: 'Root cause' });
+  hbar('chPrev', entries(s.by_preventable).filter(e => e[0] !== '(blank)'), { labelW: 220, labelHead: 'Preventable by' });
+  document.getElementById('subThemes').innerHTML = '<thead><tr><th>Contact reason</th><th class="n">Tickets</th><th>Most common specific issues (count)</th></tr></thead><tbody>' +
+    s.by_theme.map(t => `<tr><td>${esc(tl(t.theme))}</td><td class="n">${fmtN(t.count)}</td><td>${(t.top_sub_themes || []).map(esc).join(' · ')}</td></tr>`).join('') + '</tbody>';
+  const ins = (N.themeInsights || {})[scope];
+  document.getElementById('themeInsights').innerHTML = ins ? `<div class="callout"><b>What stands out</b><ul>${ins.map(i => `<li>${i}</li>`).join('')}</ul></div>` : '';
+}
+function card(c, cls) {
+  return `<div class="insight ${cls || ''}"><h3>${c.title}</h3>${c.body ? `<p>${c.body}</p>` : ''}${c.bullets ? `<ul>${c.bullets.map(b => `<li>${b}</li>`).join('')}</ul>` : ''}<div class="meta">${(c.tags || []).map(t => `<span class="pill">${t}</span>`).join('')}</div></div>`;
+}
+function staticSections() {
+  document.getElementById('period').textContent = `Freshdesk tickets created ${M.period} · ${M.scopeOrder.slice(1).join(" + ")} · generated ${M.generated}`;
+  document.getElementById('execSummary').innerHTML = N.summary || '';
+  document.getElementById('improveCards').innerHTML = (N.improve || []).map(c => card(c)).join('');
+  document.getElementById('productCards').innerHTML = (P || []).map((p, i) => card({
+    title: `${i + 1}. ${esc(p.title)}`,
+    body: `<b>What customers run into:</b> ${esc(p.problem)}<br><br><b>Evidence:</b> ${esc(p.evidence)}`,
+    bullets: (p.recommendation || []).map(esc),
+    tags: [`${p.tickets} tickets`, esc(p.product_area), esc(p.type), 'e.g. #' + (p.ticket_ids || []).slice(0, 3).join(', #')]
+  }, 'prod')).join('');
+  document.getElementById('agentCards').innerHTML = (N.agents || []).map(c => card(c, 'agent')).join('');
+  document.getElementById('agentLead').innerHTML = N.agentLead || '';
+  document.getElementById('methodText').innerHTML = N.method || '';
+  hbar('chProdArea', entries(M.scopes[ALL].by_prod_area), { labelW: 220, labelHead: 'Product area' });
+  hbar('chSensor', entries(M.scopes[ALL].by_sensor), { labelW: 160, labelHead: 'Sensor type' });
+  if (N.showAgentTables) { const host = document.getElementById('agentTables'); M.scopeOrder.slice(1).forEach((g, i) => { host.insertAdjacentHTML('beforeend', `<div class="card" style="margin-top:16px"><h3>${esc(g)}</h3><div class="tablewrap"><table id="ag${i}"></table></div></div>`); agentTable('ag' + i, g); }); }
+  else document.getElementById('agentTables').remove();
+  if (N.titleSuffix) document.querySelector('h1').textContent += N.titleSuffix;
+}
+const AG_COLS = [
+  ['agent', 'Agent', false], ['tickets', 'Tickets', true], ['score', 'Score', true], ['frt_median', 'Median 1st resp.', true, fmtH], ['res_median', 'Median resolution', true, fmtH],
+  ['avg_agent_replies', 'Replies / ticket', true], ['frr_pct', 'FCR', true, fmtP], ['reopen_pct', 'Reopened', true, fmtP],
+  ['clarity', 'Clarity', true], ['empathy', 'Empathy', true], ['ownership', 'Ownership', true], ['negative_pct', 'Negative end', true, fmtP]
+];
+const agSort = {};
+function agentTable(id, grp) {
+  const st = agSort[id] || { k: 'score', dir: -1 };
+  const list = M.agents.filter(a => a.group === grp).slice().sort((a, b) => {
+    if (st.k === 'score') { if ((a.tickets >= 15) !== (b.tickets >= 15)) return a.tickets >= 15 ? -1 : 1; }
+    const x = a[st.k], y = b[st.k]; if (x == null) return 1; if (y == null) return -1;
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  const el = document.getElementById(id);
+  el.innerHTML = '<thead><tr>' + AG_COLS.map(c => `<th class="sortable ${c[2] ? 'n' : ''}" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr></thead><tbody>' +
+    list.map(a => '<tr>' + AG_COLS.map(c => {
+      let v = a[c[0]];
+      if (c[0] === 'score') v = a.tickets >= 15 && v != null ? v : '<span class="muted">n&lt;15</span>';
+      else if (c[3]) v = c[3](v); else if (v == null) v = '–'; else if (c[0] === 'agent') v = esc(v);
+      return `<td class="${c[2] ? 'n' : ''}">${v}</td>`;
+    }).join('') + '</tr>').join('') + '</tbody>';
+  el.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; agSort[id] = { k, dir: (st.k === k ? -st.dir : (k === 'agent' ? 1 : -1)) }; agentTable(id, grp);
+  });
+}
+function renderScoped() {
+  document.querySelectorAll('.scopeName').forEach(e => e.textContent = scope === ALL ? ALL + ' (combined)' : scope);
+  tiles(); volume(); speed(); themes();
+}
+document.getElementById('scopeButtons').innerHTML = M.scopeOrder.map((sc, i) => `<button type="button" data-scope="${esc(sc)}" aria-pressed="${i === 0}">${esc(i === 0 ? sc + ' (combined)' : sc)}</button>`).join('');
+document.getElementById('compareTitle').textContent = M.scopeOrder.join(' vs. ');
+if (M.orgName) { document.getElementById('title').textContent = M.orgName + ' — Ticket Analysis'; document.title = M.orgName + ' Ticket Analysis'; }
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  scope = b.dataset.scope;
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderScoped();
+});
+document.getElementById('themeBtn').onclick = () => {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+};
+compare(); staticSections(); renderScoped();
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderScoped();
+  hbar('chProdArea', entries(M.scopes[ALL].by_prod_area), { labelW: 220, labelHead: 'Product area' });
+  hbar('chSensor', entries(M.scopes[ALL].by_sensor), { labelW: 160, labelHead: 'Sensor type' }); }, 150); });
+</script>
+</body>
+</html>
