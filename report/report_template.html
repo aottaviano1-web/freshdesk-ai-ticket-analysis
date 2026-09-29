@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Ticket Analysis</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --card: #ffffff;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --good-text: #006300; --accent-wash: #eef4fc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --card: #1a1a19;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --good-text: #0ca30c; --accent-wash: #16273d;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --card: #1a1a19;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --good-text: #0ca30c; --accent-wash: #16273d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--page); color: var(--text-primary); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; min-height: 100vh; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 24px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 40px 0 4px; }
+h3 { font-size: 15px; margin: 0 0 8px; }
+.sub { color: var(--text-secondary); margin: 2px 0 0; }
+.note { color: var(--muted); font-size: 12px; }
+.lead { color: var(--text-secondary); max-width: 900px; margin: 4px 0 16px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; font-size: 13px; }
+nav.toc a { color: var(--text-secondary); text-decoration: none; }
+nav.toc a:hover { color: var(--text-primary); text-decoration: underline; }
+.filterbar { position: sticky; top: 0; z-index: 5; background: var(--page); padding: 12px 0; border-bottom: 1px solid var(--grid); margin-bottom: 8px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; background: transparent; color: var(--text-secondary); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--page); font-weight: 600; }
+.seg button:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; }
+.tile { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .k { color: var(--text-secondary); font-size: 12px; }
+.tile .v { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.tile .d { color: var(--muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+.chart { width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart text.lbl { fill: var(--text-secondary); font-size: 12px; font-variant-numeric: normal; }
+.chart text.val { fill: var(--text-primary); font-size: 11px; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover + .mark, .chart g.bar:hover .mark { opacity: 0.8; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+details.tv { margin-top: 8px; }
+details.tv summary { color: var(--muted); font-size: 12px; cursor: pointer; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--text-primary); }
+.tablewrap { overflow-x: auto; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--axis); color: var(--text-secondary); white-space: nowrap; }
+.insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.insight { background: var(--card); border: 1px solid var(--border); border-left: 3px solid var(--series-1); border-radius: 10px; padding: 14px 16px; }
+.insight h3 { margin-bottom: 4px; }
+.insight p { margin: 4px 0; color: var(--text-secondary); }
+.insight ul { margin: 6px 0 0; padding-left: 18px; color: var(--text-secondary); }
+.insight .meta { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.insight.prod { border-left-color: var(--series-2); }
+.insight.agent { border-left-color: var(--series-3); }
+.callout { background: var(--accent-wash); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+.callout ul { margin: 6px 0 0; padding-left: 18px; }
+.muted { color: var(--muted); }
+.bar-inline { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--series-1); vertical-align: middle; }
+#tip { position: fixed; pointer-events: none; background: var(--text-primary); color: var(--page); font-size: 12px; padding: 6px 9px; border-radius: 6px; opacity: 0; transition: opacity .08s; z-index: 50; max-width: 320px; }
+.theme-toggle { font: inherit; font-size: 12px; background: transparent; color: var(--text-secondary); border: 1px solid var(--axis); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+@media print { .filterbar { position: static; } details.tv { display: none; } }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 id="title">Support Ticket Analysis</h1>
+      <p class="sub" id="period"></p>
+    </div>
+    <button class="theme-toggle" id="themeBtn" type="button">Toggle dark mode</button>
+  </header>
+  <nav class="toc">
+    <a href="#summary">Summary</a><a href="#kpis">KPIs</a><a href="#compare">Team comparison</a><a href="#volume">Volume</a>
+    <a href="#speed">Response &amp; resolution</a><a href="#themes">Volume drivers</a><a href="#improve">Where to improve</a>
+    <a href="#product">Product team</a><a href="#agents">Agents</a><a href="#method">Method</a>
+  </nav>
+
+  <section id="summary">
+    <h2>Executive summary</h2>
+    <div id="execSummary"></div>
+  </section>
+
+  <div class="filterbar">
+    <span class="note">Scope for charts below:</span>
+    <div class="seg" role="group" aria-label="Scope" id="scopeButtons">
+    </div>
+  </div>
+
+  <section id="kpis">
+    <h2>Key metrics — <span class="scopeName"></span></h2>
+    <p class="lead">Spam, auto-replies and other non-customer tickets ("noise") are excluded from speed and quality metrics. Times are calendar hours (not business hours).</p>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="compare">
+    <h2 id="compareTitle">Team comparison</h2>
+    <div class="card tablewrap"><table id="compareTable"></table></div>
+  </section>
+
+  <section id="volume">
+    <h2>Ticket volume — <span class="scopeName"></span></h2>
+    <div class="card"><h3>Tickets created per day</h3><div class="chart" id="chDay"></div></div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="card"><h3>By weekday</h3><div class="chart" id="chWeekday"></div></div>
+      <div class="card"><h3>By hour created (UTC)</h3><div class="chart" id="chHour"></div></div>
+      <div class="card"><h3>By channel</h3><div class="chart" id="chSource"></div></div>
+    </div>
+    <div class="grid3" style="margin-top:16px">
+      <div class="card"><h3>By support tier</h3><div class="chart" id="chTier"></div></div>
+      <div class="card"><h3>Status today</h3><div class="chart" id="chStatus"></div></div>
+      <div class="card"><h3>Ended positive or neutral, by week</h3><div class="chart" id="chSent"></div><p class="note">Share of tickets where the customer's closing tone was positive or neutral (full weeks, starting Monday).</p></div>
+    </div>
+  </section>
+
+  <section id="speed">
+    <h2>Response &amp; resolution time — <span class="scopeName"></span></h2>
+    <div class="grid2">
+      <div class="card"><h3>Time to first response (excl. weekend hours)</h3><div class="chart" id="chFrt"></div></div>
+      <div class="card"><h3>Time to resolution (excl. tickets closed after no customer reply)</h3><div class="chart" id="chRes"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Speed and effort by volume driver</h3><p class="note">Median hours. Sorted by ticket count.</p><div class="tablewrap"><table id="themeSpeed"></table></div></div>
+  </section>
+
+  <section id="themes">
+    <h2>What's driving ticket volume — <span class="scopeName"></span></h2>
+    <p class="lead">Every ticket was read and assigned one contact reason. Categories in Freshdesk are blank or generic on many tickets, so these are based on the conversation itself.</p>
+    <div class="grid2">
+      <div class="card"><h3>Contact reasons</h3><div class="chart" id="chTheme"></div></div>
+      <div class="card"><h3>Root cause</h3><div class="chart" id="chRoot"></div>
+        <h3 style="margin-top:18px">Could this ticket have been prevented?</h3><div class="chart" id="chPrev"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Top specific issues within each contact reason</h3><div class="tablewrap"><table id="subThemes"></table></div></div>
+    <div id="themeInsights" style="margin-top:16px"></div>
+  </section>
+
+  <section id="improve">
+    <h2>Where we can improve</h2>
+    <p class="lead">Ranked by the number of tickets each change could remove or shorten.</p>
+    <div class="insights" id="improveCards"></div>
+  </section>
+
+  <section id="product">
+    <h2>For the Product team</h2>
+    <p class="lead">Tickets whose root cause is a product defect, usability gap or missing feature, or that the product itself could have prevented. Counts are for all teams combined.</p>
+    <div class="grid2">
+      <div class="card"><h3>Product-preventable tickets by product area</h3><div class="chart" id="chProdArea"></div></div>
+      <div class="card"><h3>Product-related tickets by component</h3><div class="chart" id="chSensor"></div></div>
+    </div>
+    <div class="insights" id="productCards" style="margin-top:16px"></div>
+  </section>
+
+  <section id="agents">
+    <h2>Agent performance</h2>
+    <p class="lead" id="agentLead"></p>
+    <div class="insights" id="agentCards"></div>
+    <div id="agentTables">
+    </div>
+  </section>
+
+  <section id="method">
+    <h2>Method &amp; caveats</h2>
+    <div class="card" id="methodText"></div>
+  </section>
+</div>
+<div id="tip" role="tooltip"></div>
+</div>
+
+<script>
+const M = __METRICS__;
+const N = __NARRATIVE__;
+const P = __PRODUCT__;
+
+const THEME_LABELS = __TAXONOMY__;
+const tl = k => THEME_LABELS[k] || k;
+const fmtH = h => h == null ? '–' : (h < 48 ? (Math.round(h * 10) / 10) + ' h' : (Math.round(h / 24 * 10) / 10) + ' d');
+const fmtP = p => p == null ? '–' : p + '%';
+const fmtN = n => n == null ? '–' : n.toLocaleString('en-US');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const entries = o => Object.entries(o || {});
+const ALL = M.scopeOrder[0];
+let scope = ALL;
+
+/* ---------- tooltip ---------- */
+const tip = document.getElementById('tip');
+function bindTip(el, html) {
+  el.addEventListener('mouseenter', () => { tip.innerHTML = html; tip.style.opacity = 1; });
+  el.addEventListener('mousemove', e => { tip.style.left = Math.min(e.clientX + 14, innerWidth - 330) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
+  el.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+}
+const NS = 'http://www.w3.org/2000/svg';
+function S(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+function tableView(host, head, rows) {
+  const d = document.createElement('details'); d.className = 'tv';
+  d.innerHTML = '<summary>Show as table</summary><table><thead><tr>' + head.map((h, i) => `<th class="${i ? 'n' : ''}">${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => '<tr>' + r.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('') + '</tr>').join('') + '</tbody></table>';
+  host.appendChild(d);
+}
+/* rounded-end bar path: square at baseline, 4px radius at data end */
+function hPath(x, y, w, h) { const r = Math.min(4, w / 2, h / 2); return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`; }
+function vPath(x, y, w, h) { const r = Math.min(4, w / 2, h / 2); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; }
+
+/* horizontal bars, single series */
+function hbar(id, data, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  data = data.filter(d => d[1] > 0);
+  if (!data.length) { host.innerHTML = '<p class="note">No data.</p>'; return; }
+  const total = opts.total ?? data.reduce((a, d) => a + d[1], 0);
+  const W = Math.max(300, host.clientWidth || 560), labelW = Math.min(opts.labelW || 200, W * 0.42), rowH = 24, barH = 14, valW = 84;
+  const H = data.length * rowH + 4;
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.aria || id }, host);
+  const max = Math.max(...data.map(d => d[1]));
+  const plotW = W - labelW - valW;
+  S('line', { x1: labelW, x2: labelW, y1: 0, y2: H, class: 'baseline' }, svg);
+  data.forEach((d, i) => {
+    const y = i * rowH + (rowH - barH) / 2, w = Math.max(1, d[1] / max * plotW);
+    const g = S('g', { class: 'bar' }, svg);
+    const t = S('text', { x: labelW - 8, y: y + barH / 2 + 4, 'text-anchor': 'end', class: 'lbl' }, g); const maxCh = Math.floor(labelW / 6.6); t.textContent = d[0].length > maxCh ? d[0].slice(0, maxCh - 1) + '…' : d[0];
+    S('path', { d: hPath(labelW, y, w, barH), fill: opts.color || 'var(--series-1)', class: 'mark' }, g);
+    const v = S('text', { x: labelW + w + 6, y: y + barH / 2 + 4, class: 'val' }, g);
+    v.textContent = fmtN(d[1]) + (opts.pct !== false ? '  ·  ' + Math.round(d[1] / total * 100) + '%' : '');
+    const hit = S('rect', { x: 0, y: i * rowH, width: W, height: rowH, class: 'hit' }, g);
+    bindTip(hit, `<b>${esc(d[0])}</b><br>${fmtN(d[1])} tickets (${(d[1] / total * 100).toFixed(1)}%)` + (d[2] ? '<br>' + esc(d[2]) : ''));
+  });
+  tableView(host, [opts.labelHead || 'Category', 'Tickets', 'Share'], data.map(d => [d[0], fmtN(d[1]), (d[1] / total * 100).toFixed(1) + '%']));
+}
+
+/* vertical bars, single series */
+function vbar(id, data, opts = {}) {
+  const host = document.getElementById(id); host.innerHTML = '';
+  const W = Math.max(260, host.clientWidth || 560), H = opts.H || 200, padL = 36, padB = 26, padT = 16;
+  const svg = S('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.aria || id }, host);
+  const max = niceMax(Math.max(1, ...data.map(d => d[1])));
+  const plotW = W - padL, plotH = H - padB - padT, n = data.length;
+  const slot = plotW / n, bw = Math.max(2, Math.min(40, slot - 2));
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + plotH - k / 4 * plotH;
+    S('line', { x1: padL, x2: W, y1: y, y2: y, class: k ? 'gridline' : 'baseline' }, svg);
+    const t = S('text', { x: padL - 6, y: y + 4, 'text-anchor': 'end' }, svg); t.textContent = fmtN(Math.round(max * k / 4));
+  }
+  const every = opts.labelEvery || Math.ceil(n / 12);
+  data.forEach((d, i) => {
+    const h = d[1] / max * plotH, x = padL + i * slot + (slot - bw) / 2, y = padT + plotH - h;
+    const g = S('g', { class: 'bar' }, svg);
+    if (h > 0) S('path', { d: vPath(x, y, bw, h), fill: (opts.colorFn && opts.colorFn(d)) || 'var(--series-1)', class: 'mark' }, g);
+    if (i % every === 0) { const t = S('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle' }, g); t.textContent = opts.xfmt ? opts.xfmt(d[0]) : d[0]; }
+    if (opts.showVals) { const v = S('text', { x: x + bw / 2, y: y - 4, 'text-anchor': 'middle', class: 'val' }, g); v.textContent = fmtN(d[1]) + (opts.pct ? '%' : ''); }
+    const hit = S('rect', { x: padL + i * slot, y: padT, width: slot, height: plotH, class: 'hit' }, g);
+    bindTip(hit, `<b>${esc(opts.tipfmt ? opts.tipfmt(d[0]) : d[0])}</b><br>${fmtN(d[1])}${opts.pct ? '%' : ' tickets'}`);
+  });
+  tableView(host, [opts.labelHead || 'Bucket', opts.pct ? 'Share' : 'Tickets'], data.map(d => [d[0], fmtN(d[1]) + (opts.pct ? '%' : '')]));
+}
+
+/* ---------- renderers ---------- */
+function tiles() {
+  const s = M.scopes[scope];
+  const T = [
+    ['Customer tickets', fmtN(s.tickets_real), `${fmtN(s.tickets_total)} total incl. ${fmtN(s.noise)} noise`],
+    ['Median first response', fmtH(s.frt_median), `Excl. weekend hours · 90th percentile ${fmtH(s.frt_p90)}`],
+    ['First response ≤ 24 h', fmtP(s.frt_within_24h), `Excl. weekend hours · ≤ 8 h: ${fmtP(s.frt_within_8h)}`],
+    ['Median time to resolution', fmtH(s.res_median_excl_auto), s.auto_closed ? `Excl. ${fmtN(s.auto_closed)} closed after the customer stopped responding to follow-ups; incl. them ${fmtH(s.res_median)}` : `90th percentile ${fmtH(s.res_p90)}`],
+    ['Open time waiting on customer', fmtP(s.wait_customer_pct), 'Share of open time spent waiting for the customer to reply'],
+    ['Resolved ≤ 72 h', fmtP(s.res_within_72h_excl_auto), s.auto_closed ? `Excl. tickets closed after no customer reply · incl. them ${fmtP(s.res_within_72h)}` : `≤ 24 h: ${fmtP(s.res_within_24h)} · ≤ 7 d: ${fmtP(s.res_within_7d)}`],
+    ['Ended positive or neutral', fmtP(s.pos_neutral_pct), 'Customer tone at end of ticket, where visible'],
+    ['Agent replies / ticket', s.avg_agent_replies, 'Public replies to the customer'],
+    ['First contact resolution (FCR)', fmtP(s.first_reply_resolved_pct), 'Resolved tickets with ≤ 2 customer replies'],
+    ['Customer wrote back after resolution', fmtP(s.reopen_pct), 'Freshdesk reopen flag (often thank-you replies)'],
+    ['Communication quality', s.clarity ? ((s.clarity + s.empathy + s.ownership) / 3).toFixed(2) + ' / 5' : '–', `3 = solid, 4 = good · Clarity ${s.clarity ?? '–'} · Empathy ${s.empathy ?? '–'} · Ownership ${s.ownership ?? '–'}`],
+    ['Open / pending now', fmtN(s.open_backlog), 'Not yet resolved or closed'],
+  ];
+  document.getElementById('tiles').innerHTML = T.map(t => `<div class="tile"><div class="k">${t[0]}</div><div class="v">${t[1]}</div><div class="d">${t[2]}</div></div>`).join('');
+}
+function compare() {
+  const cols = M.scopeOrder;
+  const R = [
+    ['Tickets (total)', s => fmtN(s.tickets_total)], ['Customer tickets (excl. noise)', s => fmtN(s.tickets_real)], ['Noise', s => fmtN(s.noise)],
+    ['Median first response (excl. weekends)', s => fmtH(s.frt_median)], ['90th pct first response (excl. weekends)', s => fmtH(s.frt_p90)], ['First response ≤ 8 h (excl. weekends)', s => fmtP(s.frt_within_8h)],
+    ['First response ≤ 24 h (excl. weekends)', s => fmtP(s.frt_within_24h)],
+    ['Median resolution (excl. no customer reply)', s => fmtH(s.res_median_excl_auto)], ['Resolved ≤ 72 h (excl. no customer reply)', s => fmtP(s.res_within_72h_excl_auto)],
+    ['Open time waiting on customer', s => fmtP(s.wait_customer_pct)],
+    ['Closed after customer stopped responding (multiple follow-ups)', s => fmtN(s.auto_closed)], ['Median resolution (all resolved)', s => fmtH(s.res_median)], ['Resolved ≤ 7 days (all)', s => fmtP(s.res_within_7d)],
+    ['Agent replies per ticket', s => s.avg_agent_replies],
+    ['First contact resolution (≤ 2 customer replies)', s => fmtP(s.first_reply_resolved_pct)], ['Customer need met', s => fmtP(s.resolved_pct)], ['Customer wrote back after resolution', s => fmtP(s.reopen_pct)],
+    ['Clarity (1–5)', s => s.clarity ?? '–'], ['Empathy (1–5)', s => s.empathy ?? '–'], ['Ownership (1–5)', s => s.ownership ?? '–'],
+    ['Ended positive or neutral', s => fmtP(s.pos_neutral_pct)], ['Customer need met', s => fmtP(s.resolved_pct)],
+    ['Open / pending now', s => fmtN(s.open_backlog)],
+  ];
+  document.getElementById('compareTable').innerHTML = '<thead><tr><th>Metric</th>' + cols.map(c => `<th class="n">${c}</th>`).join('') + '</tr></thead><tbody>' +
+    R.map(r => `<tr><td>${r[0]}</td>` + cols.map(c => `<td class="n">${r[1](M.scopes[c])}</td>`).join('') + '</tr>').join('') + '</tbody>';
+}
+const WD = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+function volume() {
+  const s = M.scopes[scope];
+  const days = entries(s.by_day);
+  vbar('chDay', days, { H: 220, labelEvery: 3, xfmt: d => d.slice(5), tipfmt: d => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }), labelHead: 'Date' });
+  vbar('chWeekday', WD.map(d => [d.slice(0, 3), s.by_weekday[d] || 0]), { W: 360, H: 200, showVals: true, labelHead: 'Weekday' });
+  vbar('chHour', entries(s.by_hour).map(e => [e[0], e[1]]), { W: 360, H: 200, labelEvery: 3, tipfmt: h => h + ':00–' + h + ':59 UTC', labelHead: 'Hour (UTC)' });
+  hbar('chSource', entries(s.by_source), { labelW: 130, labelHead: 'Channel' });
+  hbar('chTier', entries(s.by_tier), { labelW: 130, labelHead: 'Tier' });
+  hbar('chStatus', entries(s.status), { labelW: 130, labelHead: 'Status' });
+  vbar('chSent', entries(s.pos_neutral_by_week).map(e => ['wk ' + e[0].slice(5), e[1]]), { W: 360, H: 200, showVals: true, labelEvery: 1, labelHead: 'Week starting', pct: true });
+}
+function speed() {
+  const s = M.scopes[scope];
+  vbar('chFrt', entries(s.frt_buckets), { H: 210, showVals: true, labelEvery: 1, labelHead: 'First response' });
+  vbar('chRes', entries(s.res_buckets), { H: 210, showVals: true, labelEvery: 1, labelHead: 'Resolution' });
+  document.getElementById('themeSpeed').innerHTML = '<thead><tr><th>Contact reason</th><th class="n">Tickets</th><th class="n">Median 1st response</th><th class="n">Median resolution</th><th class="n">Messages / ticket</th><th class="n">FCR</th><th class="n">Positive / neutral end</th></tr></thead><tbody>' +
+    s.by_theme.map(t => `<tr><td>${esc(tl(t.theme))}</td><td class="n">${fmtN(t.count)}</td><td class="n">${fmtH(t.frt_median)}</td><td class="n">${fmtH(t.res_median)}</td><td class="n">${t.avg_messages}</td><td class="n">${fmtP(t.frr_pct)}</td><td class="n">${fmtP(t.posneu_pct)}</td></tr>`).join('') + '</tbody>';
+}
+function themes() {
+  const s = M.scopes[scope];
+  hbar('chTheme', s.by_theme.map(t => [tl(t.theme), t.count, (t.top_sub_themes || []).slice(0, 3).join(' · ')]), { labelW: 220, labelHead: 'Contact reason' });
+  hbar('chRoot', entries(s.by_root_cause).filter(e => e[0] !== 'Noise' && e[0] !== '(blank)'), { labelW: 220, labelHead: 'Root cause' });
+  hbar('chPrev', entries(s.by_preventable).filter(e => e[0] !== '(blank)'), { labelW: 220, labelHead: 'Preventable by' });
+  document.getElementById('subThemes').innerHTML = '<thead><tr><th>Contact reason</th><th class="n">Tickets</th><th>Most common specific issues (count)</th></tr></thead><tbody>' +
+    s.by_theme.map(t => `<tr><td>${esc(tl(t.theme))}</td><td class="n">${fmtN(t.count)}</td><td>${(t.top_sub_themes || []).map(esc).join(' · ')}</td></tr>`).join('') + '</tbody>';
+  const ins = (N.themeInsights || {})[scope];
+  document.getElementById('themeInsights').innerHTML = ins ? `<div class="callout"><b>What stands out</b><ul>${ins.map(i => `<li>${i}</li>`).join('')}</ul></div>` : '';
+}
+function card(c, cls) {
+  return `<div class="insight ${cls || ''}"><h3>${c.title}</h3>${c.body ? `<p>${c.body}</p>` : ''}${c.bullets ? `<ul>${c.bullets.map(b => `<li>${b}</li>`).join('')}</ul>` : ''}<div class="meta">${(c.tags || []).map(t => `<span class="pill">${t}</span>`).join('')}</div></div>`;
+}
+function staticSections() {
+  document.getElementById('period').textContent = `Freshdesk tickets created ${M.period} · ${M.scopeOrder.slice(1).join(" + ")} · generated ${M.generated}`;
+  document.getElementById('execSummary').innerHTML = N.summary || '';
+  document.getElementById('improveCards').innerHTML = (N.improve || []).map(c => card(c)).join('');
+  document.getElementById('productCards').innerHTML = (P || []).map((p, i) => card({
+    title: `${i + 1}. ${esc(p.title)}`,
+    body: `<b>What customers run into:</b> ${esc(p.problem)}<br><br><b>Evidence:</b> ${esc(p.evidence)}`,
+    bullets: (p.recommendation || []).map(esc),
+    tags: [`${p.tickets} tickets`, esc(p.product_area), esc(p.type), 'e.g. #' + (p.ticket_ids || []).slice(0, 3).join(', #')]
+  }, 'prod')).join('');
+  document.getElementById('agentCards').innerHTML = (N.agents || []).map(c => card(c, 'agent')).join('');
+  document.getElementById('agentLead').innerHTML = N.agentLead || '';
+  document.getElementById('methodText').innerHTML = N.method || '';
+  hbar('chProdArea', entries(M.scopes[ALL].by_prod_area), { labelW: 220, labelHead: 'Product area' });
+  hbar('chSensor', entries(M.scopes[ALL].by_sensor), { labelW: 160, labelHead: 'Sensor type' });
+  if (N.showAgentTables) { const host = document.getElementById('agentTables'); M.scopeOrder.slice(1).forEach((g, i) => { host.insertAdjacentHTML('beforeend', `<div class="card" style="margin-top:16px"><h3>${esc(g)}</h3><div class="tablewrap"><table id="ag${i}"></table></div></div>`); agentTable('ag' + i, g); }); }
+  else document.getElementById('agentTables').remove();
+  if (N.titleSuffix) document.querySelector('h1').textContent += N.titleSuffix;
+}
+const AG_COLS = [
+  ['agent', 'Agent', false], ['tickets', 'Tickets', true], ['score', 'Score', true], ['frt_median', 'Median 1st resp.', true, fmtH], ['res_median', 'Median resolution', true, fmtH],
+  ['avg_agent_replies', 'Replies / ticket', true], ['frr_pct', 'FCR', true, fmtP], ['reopen_pct', 'Reopened', true, fmtP],
+  ['clarity', 'Clarity', true], ['empathy', 'Empathy', true], ['ownership', 'Ownership', true], ['negative_pct', 'Negative end', true, fmtP]
+];
+const agSort = {};
+function agentTable(id, grp) {
+  const st = agSort[id] || { k: 'score', dir: -1 };
+  const list = M.agents.filter(a => a.group === grp).slice().sort((a, b) => {
+    if (st.k === 'score') { if ((a.tickets >= 15) !== (b.tickets >= 15)) return a.tickets >= 15 ? -1 : 1; }
+    const x = a[st.k], y = b[st.k]; if (x == null) return 1; if (y == null) return -1;
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  const el = document.getElementById(id);
+  el.innerHTML = '<thead><tr>' + AG_COLS.map(c => `<th class="sortable ${c[2] ? 'n' : ''}" data-k="${c[0]}">${c[1]}${st.k === c[0] ? (st.dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr></thead><tbody>' +
+    list.map(a => '<tr>' + AG_COLS.map(c => {
+      let v = a[c[0]];
+      if (c[0] === 'score') v = a.tickets >= 15 && v != null ? v : '<span class="muted">n&lt;15</span>';
+      else if (c[3]) v = c[3](v); else if (v == null) v = '–'; else if (c[0] === 'agent') v = esc(v);
+      return `<td class="${c[2] ? 'n' : ''}">${v}</td>`;
+    }).join('') + '</tr>').join('') + '</tbody>';
+  el.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+    const k = th.dataset.k; agSort[id] = { k, dir: (st.k === k ? -st.dir : (k === 'agent' ? 1 : -1)) }; agentTable(id, grp);
+  });
+}
+function renderScoped() {
+  document.querySelectorAll('.scopeName').forEach(e => e.textContent = scope === ALL ? ALL + ' (combined)' : scope);
+  tiles(); volume(); speed(); themes();
+}
+document.getElementById('scopeButtons').innerHTML = M.scopeOrder.map((sc, i) => `<button type="button" data-scope="${esc(sc)}" aria-pressed="${i === 0}">${esc(i === 0 ? sc + ' (combined)' : sc)}</button>`).join('');
+document.getElementById('compareTitle').textContent = M.scopeOrder.join(' vs. ');
+if (M.orgName) { document.getElementById('title').textContent = M.orgName + ' — Ticket Analysis'; document.title = M.orgName + ' Ticket Analysis'; }
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  scope = b.dataset.scope;
+  document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderScoped();
+});
+document.getElementById('themeBtn').onclick = () => {
+  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme = dark ? 'light' : 'dark';
+};
+compare(); staticSections(); renderScoped();
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderScoped();
+  hbar('chProdArea', entries(M.scopes[ALL].by_prod_area), { labelW: 220, labelHead: 'Product area' });
+  hbar('chSensor', entries(M.scopes[ALL].by_sensor), { labelW: 160, labelHead: 'Sensor type' }); }, 150); });
+</script>
+</body>
+</html>
